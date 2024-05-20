@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: bilelmoussaoui/flatpak-github-actions:freedesktop-23.08
-      options: --privileged
+ #     options: --privileged
     steps:
     - uses: actions/checkout@v4
     - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
