@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: bilelmoussaoui/flatpak-github-actions:freedesktop-23.08
- #     options: --privileged
+      options: --privileged
     steps:
     - uses: actions/checkout@v4
     - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
@@ -18,3 +18,4 @@ jobs:
         manifest-path: com.brave.Browser.yaml
         cache-key: flatpak-builder-${{ github.sha }}
         verbose: true
+        cache: no-cache
