@@ -17,3 +17,4 @@ jobs:
         bundle: brave.flatpak
         manifest-path: com.brave.Browser.yaml
         cache-key: flatpak-builder-${{ github.sha }}
+        verbose: true
