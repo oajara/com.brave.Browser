@@ -6,6 +6,9 @@ on:
 jobs:
   flatpak-external-data-checker:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     strategy:
       matrix:
         branch: [ master, beta ]
@@ -13,7 +16,38 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ matrix.branch }}
+
+      # Gate: only proceed when the *promoted* version's GitHub assets are
+      # downloadable. Mirrors Jenkins: flathub follows the x64 promotion, and
+      # both arch zips must exist before a PR is created.
+      # TEST STAND-IN: in production BASE will be https://versions.brave.com/latest
+      - name: Gate (promoted version + assets ready)
+        id: gate
+        env:
+          BRANCH: ${{ matrix.branch }}
+        run: |
+          set -euo pipefail
+          case "$BRANCH" in
+            master) POINTER="release-linux-x64"; PREFIX="brave-browser" ;;
+            beta)   POINTER="beta-linux-x64";    PREFIX="brave-browser-beta" ;;
+            *) echo "unexpected branch: $BRANCH"; exit 1 ;;
+          esac
+          BASE="https://raw.githubusercontent.com/oajara/com.brave.Browser/${BRANCH}/test-pointers"
+          V=$(curl -fsS --max-time 30 --retry 3 "${BASE}/${POINTER}.version.json" | jq -r .version)
+          echo "promoted version: ${V}"
+          for arch in amd64 arm64; do
+            url="https://github.com/brave/brave-browser/releases/download/v${V}/${PREFIX}-${V}-linux-${arch}.zip"
+            code=$(curl -sIL -o /dev/null -w '%{http_code}' --max-time 30 --retry 3 "$url" || echo "000")
+            if [ "$code" != "200" ]; then
+              echo "asset for ${arch} not ready (${code}); skipping this run"
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
       - uses: docker://ghcr.io/flathub/flatpak-external-data-checker:latest
+        if: steps.gate.outputs.run == 'true'
         env:
           GIT_AUTHOR_NAME: Flatpak External Data Checker
           GIT_COMMITTER_NAME: Flatpak External Data Checker

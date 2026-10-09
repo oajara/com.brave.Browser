@@ -114,11 +114,31 @@ modules:
         sha256: 78b0ca878c39ea2872fb9527b68c9031c1ec7e866d055d744dde493bf172f931
         dest-filename: brave.zip
         only-arches: [x86_64]
+        # TEST STAND-IN: production URL will be https://versions.brave.com/latest/beta-linux-x64.version.json
+        x-checker-data:
+          type: json
+          url: https://raw.githubusercontent.com/oajara/com.brave.Browser/beta/test-pointers/beta-linux-x64.version.json
+          version-query: .version
+          url-data-url: '"https://api.github.com/repos/brave/brave-browser/releases/tags/v" + $version'
+          url-query: .assets | map(select(.name == ("brave-browser-beta-" + $version + "-linux-amd64.zip"))) | .[0].browser_download_url
+          timestamp-data-url: '"https://api.github.com/repos/brave/brave-browser/releases/tags/v" + $version'
+          timestamp-query: .published_at
+          is-main-source: true
+          release-url-template: https://github.com/brave/brave-browser/releases/tag/v$version
       - type: file
         url: https://github.com/brave/brave-browser/releases/download/v1.98.47/brave-browser-beta-1.98.47-linux-arm64.zip
         sha256: baa3da8a10212ab7b1078b62058af62f891c6f485fcc1cad656de28fc28afb00
         dest-filename: brave.zip
         only-arches: [aarch64]
+        # TEST STAND-IN: production URL will be https://versions.brave.com/latest/beta-linux-x64.version.json
+        x-checker-data:
+          type: json
+          url: https://raw.githubusercontent.com/oajara/com.brave.Browser/beta/test-pointers/beta-linux-x64.version.json
+          version-query: .version
+          url-data-url: '"https://api.github.com/repos/brave/brave-browser/releases/tags/v" + $version'
+          url-query: .assets | map(select(.name == ("brave-browser-beta-" + $version + "-linux-arm64.zip"))) | .[0].browser_download_url
+          timestamp-data-url: '"https://api.github.com/repos/brave/brave-browser/releases/tags/v" + $version'
+          timestamp-query: .published_at
       - type: file
         path: cobalt.ini
       - type: file
