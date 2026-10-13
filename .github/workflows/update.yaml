@@ -18,31 +18,57 @@ jobs:
           ref: ${{ matrix.branch }}
 
       # Gate: only proceed when the *promoted* version's GitHub assets are
-      # downloadable. Mirrors Jenkins: flathub follows the x64 promotion, and
-      # both arch zips must exist before a PR is created.
+      # downloadable AND their Linux checksums are signed by the expected Brave
+      # key. Mirrors Jenkins: flathub follows the x64 promotion, and both arch
+      # zips must exist before a PR is created.
       # TEST STAND-IN: in production BASE will be https://versions.brave.com/latest
-      - name: Gate (promoted version + assets ready)
+      - name: Gate (promoted version + assets + signed checksums)
         id: gate
         env:
           BRANCH: ${{ matrix.branch }}
         run: |
           set -euo pipefail
           case "$BRANCH" in
-            master) POINTER="release-linux-x64"; PREFIX="brave-browser" ;;
-            beta)   POINTER="beta-linux-x64";    PREFIX="brave-browser-beta" ;;
+            master)
+              POINTER="release-linux-x64"; PREFIX="brave-browser"
+              SIGNING_KEY="github-checksums-release.asc"; SIGNING_FP="B840107020F8BED83CF7696DEDC0814C91A8144D"
+              ;;
+            beta)
+              POINTER="beta-linux-x64"; PREFIX="brave-browser-beta"
+              SIGNING_KEY="github-checksums-pre-release.asc"; SIGNING_FP="2739F6DFC3077EA8A193A2B23DCB1DA4732251B4"
+              ;;
             *) echo "unexpected branch: $BRANCH"; exit 1 ;;
           esac
           BASE="https://raw.githubusercontent.com/oajara/com.brave.Browser/${BRANCH}/test-pointers"
           V=$(curl -fsS --max-time 30 --retry 3 "${BASE}/${POINTER}.version.json" | jq -r .version)
           echo "promoted version: ${V}"
+          downloads="$(mktemp -d)"
           for arch in amd64 arm64; do
-            url="https://github.com/brave/brave-browser/releases/download/v${V}/${PREFIX}-${V}-linux-${arch}.zip"
-            code=$(curl -sIL -o /dev/null -w '%{http_code}' --max-time 30 --retry 3 "$url" || echo "000")
-            if [ "$code" != "200" ]; then
-              echo "asset for ${arch} not ready (${code}); skipping this run"
-              echo "run=false" >> "$GITHUB_OUTPUT"
-              exit 0
+            zip_url="https://github.com/brave/brave-browser/releases/download/v${V}/${PREFIX}-${V}-linux-${arch}.zip"
+            for url in "$zip_url" "$zip_url.sha256" "$zip_url.sha256.asc"; do
+              code=$(curl -sIL -o /dev/null -w '%{http_code}' --max-time 30 --retry 3 "$url" || echo "000")
+              if [ "$code" != "200" ]; then
+                echo "not ready: ${url} (${code}); skipping this run"
+                echo "run=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            done
+            curl -fsSL --retry 3 "$zip_url.sha256" -o "${downloads}/${arch}.sha256"
+            curl -fsSL --retry 3 "$zip_url.sha256.asc" -o "${downloads}/${arch}.sha256.asc"
+          done
+          # Refuse a release whose Linux checksums are not signed by the expected
+          # Brave key (same pattern as brave/bravebot publish-npm.yml: import the
+          # published key, pin the fingerprint, require an exact VALIDSIG match).
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
+          curl -fsS --retry 3 "https://versions.brave.com/keys/${SIGNING_KEY}" | gpg --batch --quiet --import
+          for arch in amd64 arm64; do
+            status="$(gpg --batch --status-fd 1 --verify "${downloads}/${arch}.sha256.asc" "${downloads}/${arch}.sha256" 2>/dev/null)" || status=""
+            if ! printf '%s\n' "$status" | grep -q "^\[GNUPG:\] VALIDSIG .* ${SIGNING_FP}$"; then
+              echo "error: ${arch} checksum signature does not verify against ${SIGNING_FP}; refusing to update"
+              exit 1
             fi
+            echo "signature OK: ${arch} ${SIGNING_FP}"
           done
           echo "run=true" >> "$GITHUB_OUTPUT"
 
