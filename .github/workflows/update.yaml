@@ -59,7 +59,8 @@ jobs:
           # Refuse a release whose Linux checksums are not signed by the expected
           # Brave key (same pattern as brave/bravebot publish-npm.yml: import the
           # published key, pin the fingerprint, require an exact VALIDSIG match).
-          export GNUPGHOME="$(mktemp -d)"
+          GNUPGHOME="$(mktemp -d)"
+          export GNUPGHOME
           curl -fsS --retry 3 "https://versions.brave.com/keys/${SIGNING_KEY}" | gpg --batch --quiet --import
           for arch in amd64 arm64; do
             status="$(gpg --batch --status-fd 1 --verify "${downloads}/${arch}.sha256.asc" "${downloads}/${arch}.sha256" 2>/dev/null)" || status=""
