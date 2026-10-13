@@ -56,9 +56,6 @@ jobs:
             curl -fsSL --retry 3 "$zip_url.sha256" -o "${downloads}/${arch}.sha256"
             curl -fsSL --retry 3 "$zip_url.sha256.asc" -o "${downloads}/${arch}.sha256.asc"
           done
-          # Refuse a release whose Linux checksums are not signed by the expected
-          # Brave key (same pattern as brave/bravebot publish-npm.yml: import the
-          # published key, pin the fingerprint, require an exact VALIDSIG match).
           GNUPGHOME="$(mktemp -d)"
           export GNUPGHOME
           curl -fsS --retry 3 "https://versions.brave.com/keys/${SIGNING_KEY}" | gpg --batch --quiet --import
